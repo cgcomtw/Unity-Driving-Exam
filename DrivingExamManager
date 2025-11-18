@@ -1,0 +1,156 @@
+// DrivingExamManager.cs
+using UnityEngine;
+using System;
+
+public class DrivingExamManager : MonoBehaviour
+{
+    public static DrivingExamManager Instance { get; private set; }
+
+    [Header("考試設定")]
+    [Tooltip("起始分數，例如 100")]
+    public float startScore = 100f;
+
+    [Tooltip("最低及格分數，例如 70")]
+    public float passScore = 70f;
+
+    [Tooltip("考試時間（秒），0 代表不計時")]
+    public float examTimeLimit = 600f;
+
+    [Header("狀態")]
+    public bool autoStartOnPlay = true;
+
+    public float CurrentScore { get; private set; }
+    public float ElapsedTime { get; private set; }
+    public float RemainingTime { get; private set; }
+    public bool IsExamRunning { get; private set; }
+    public bool IsFinished { get; private set; }
+    public bool IsPassed { get; private set; }
+
+    public event Action<float> OnScoreChanged;
+    public event Action<string> OnMessage;
+    public event Action<bool> OnExamFinished;
+
+    private void Awake()
+    {
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+        Instance = this;
+        DontDestroyOnLoad(gameObject);
+
+        ResetExamState();
+    }
+
+    private void Start()
+    {
+        if (autoStartOnPlay)
+        {
+            StartExam();
+        }
+    }
+
+    private void Update()
+    {
+        if (!IsExamRunning || IsFinished)
+            return;
+
+        ElapsedTime += Time.deltaTime;
+
+        if (examTimeLimit > 0f)
+        {
+            RemainingTime = Mathf.Max(0f, examTimeLimit - ElapsedTime);
+            if (RemainingTime <= 0f)
+            {
+                EndExam("時間到");
+            }
+        }
+        else
+        {
+            RemainingTime = -1f; // 不計時
+        }
+    }
+
+    public void StartExam()
+    {
+        ResetExamState();
+        IsExamRunning = true;
+        SendMessageToUI("考試開始");
+    }
+
+    public void EndExam(string reason = "")
+    {
+        if (IsFinished) return;
+
+        IsExamRunning = false;
+        IsFinished = true;
+        IsPassed = CurrentScore >= passScore;
+
+        string msg = IsPassed ? "考試通過" : "考試未通過";
+        if (!string.IsNullOrEmpty(reason))
+        {
+            msg += $"（{reason}）";
+        }
+
+        SendMessageToUI(msg);
+        OnExamFinished?.Invoke(IsPassed);
+    }
+
+    public void AddPenalty(float value, string reason = "")
+    {
+        if (!IsExamRunning) return;
+
+        CurrentScore -= Mathf.Abs(value);
+        CurrentScore = Mathf.Max(0f, CurrentScore);
+        OnScoreChanged?.Invoke(CurrentScore);
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            SendMessageToUI($"扣分 {value}：{reason}");
+        }
+
+        if (CurrentScore <= 0f)
+        {
+            EndExam("分數歸零");
+        }
+    }
+
+    public void AddBonus(float value, string reason = "")
+    {
+        if (!IsExamRunning) return;
+
+        CurrentScore += Mathf.Abs(value);
+        OnScoreChanged?.Invoke(CurrentScore);
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            SendMessageToUI($"加分 {value}：{reason}");
+        }
+    }
+
+    public void ForceFail(string reason = "重大違規")
+    {
+        CurrentScore = 0f;
+        OnScoreChanged?.Invoke(CurrentScore);
+        EndExam(reason);
+    }
+
+    public void SendMessageToUI(string msg)
+    {
+        Debug.Log($"[Exam] {msg}");
+        OnMessage?.Invoke(msg);
+    }
+
+    private void ResetExamState()
+    {
+        CurrentScore = startScore;
+        ElapsedTime = 0f;
+        RemainingTime = examTimeLimit > 0f ? examTimeLimit : -1f;
+        IsExamRunning = false;
+        IsFinished = false;
+        IsPassed = false;
+
+        OnScoreChanged?.Invoke(CurrentScore);
+    }
+}
