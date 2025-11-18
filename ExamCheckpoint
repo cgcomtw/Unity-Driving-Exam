@@ -1,0 +1,64 @@
+// ExamCheckpoint.cs
+using UnityEngine;
+
+[RequireComponent(typeof(Collider))]
+public class ExamCheckpoint : MonoBehaviour
+{
+    [Tooltip("此檢查點在整條路線中的順序（從 0 或 1 開始皆可，但請一致）")]
+    public int checkpointIndex = 0;
+
+    [Tooltip("是否只能觸發一次")]
+    public bool triggerOnce = true;
+
+    [Tooltip("錯誤順序通過時扣分（若 0 則不扣）")]
+    public float wrongOrderPenalty = 5f;
+
+    [Tooltip("到達正確檢查點給予提示文字")]
+    public string messageOnReach = "通過檢查點";
+
+    private bool _hasTriggered = false;
+
+    private void Reset()
+    {
+        // 建議設為 Trigger
+        GetComponent<Collider>().isTrigger = true;
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (!IsPlayerCar(other)) return;
+        if (!DrivingExamManager.Instance || !DrivingExamManager.Instance.IsExamRunning) return;
+
+        if (triggerOnce && _hasTriggered) return;
+        _hasTriggered = true;
+
+        // 簡單寫法：可以在別的腳本儲存「目前應該到第幾個檢查點」
+        // 這裡為了簡化，只做提示＋錯誤順序扣分的 Hook
+        // 可以把 "ExamRouteProgress" 做成另一支腳本更完整管理。
+        DrivingExamManager.Instance.SendMessageToUI(
+            $"{messageOnReach}（#{checkpointIndex}）"
+        );
+
+        // 只示範錯誤順序扣分的流程：
+        // 可以在場景中放一個 ExamRouteProgress.cs 來記錄真正的順序。
+        // 下面這段可以留著當 Template，日後接上自己的 Route 管理。
+
+        // Example:
+        // var route = FindObjectOfType<ExamRouteProgress>();
+        // if (route != null)
+        // {
+        //     bool correct = route.OnCheckpointReached(checkpointIndex);
+        //     if (!correct && wrongOrderPenalty > 0)
+        //     {
+        //         DrivingExamManager.Instance.AddPenalty(wrongOrderPenalty, "錯誤路線");
+        //     }
+        // }
+    }
+
+    private bool IsPlayerCar(Collider col)
+    {
+        // 建議把玩家車輛的 Root 物件設為 "Player" tag
+        return col.attachedRigidbody != null &&
+               col.attachedRigidbody.CompareTag("Player");
+    }
+}
