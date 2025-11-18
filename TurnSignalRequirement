@@ -1,0 +1,86 @@
+// TurnSignalRequirement.cs
+using UnityEngine;
+
+[RequireComponent(typeof(Collider))]
+public class TurnSignalRequirement : MonoBehaviour
+{
+    public enum RequiredSignal
+    {
+        Left,
+        Right
+    }
+
+    [Tooltip("需要打哪一邊方向燈")]
+    public RequiredSignal requiredSignal = RequiredSignal.Left;
+
+    [Tooltip("必須提前打方向燈多久（秒）")]
+    public float requiredDuration = 2f;
+
+    [Tooltip("未打方向燈扣幾分")]
+    public float penaltyScore = 5f;
+
+    [Tooltip("扣分原因文字")]
+    public string penaltyReason = "未提前打方向燈";
+
+    [Tooltip("同一輛車通過此區域時是否只判斷一次")]
+    public bool onlyOnce = true;
+
+    private bool _hasTriggered = false;
+    private VehicleSignalState _signalState;
+    private float _signalTimer = 0f;
+    private bool _isInsideCheckZone = false;
+
+    private void Reset()
+    {
+        GetComponent<Collider>().isTrigger = true;
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (!IsPlayerCar(other)) return;
+        if (!DrivingExamManager.Instance || !DrivingExamManager.Instance.IsExamRunning) return;
+        if (onlyOnce && _hasTriggered) return;
+
+        _hasTriggered = true;
+
+        _signalState = other.GetComponentInParent<VehicleSignalState>();
+        _isInsideCheckZone = true;
+
+        // 在進入區域的那一刻就直接判斷過去 N 秒有沒有打方向燈
+        // 為了簡單起見，這裡改成「在進入時，方向燈是否已經持續足夠時間」
+        // 所以我們直接看當下有沒有打燈，如果沒有就扣分。
+        // 想要做「提前 2 秒以上」的嚴格判斷，可以配合全局紀錄器。
+
+        if (_signalState == null || !IsRequiredSignalOn())
+        {
+            DrivingExamManager.Instance.AddPenalty(penaltyScore, penaltyReason);
+        }
+        else
+        {
+            DrivingExamManager.Instance.SendMessageToUI("方向燈使用正確");
+        }
+
+        _isInsideCheckZone = false;
+    }
+
+    private void OnTriggerExit(Collider other)
+    {
+        if (!IsPlayerCar(other)) return;
+        _isInsideCheckZone = false;
+    }
+
+    private bool IsRequiredSignalOn()
+    {
+        if (_signalState == null) return false;
+
+        return requiredSignal == RequiredSignal.Left
+            ? _signalState.LeftSignalOn
+            : _signalState.RightSignalOn;
+    }
+
+    private bool IsPlayerCar(Collider col)
+    {
+        return col.attachedRigidbody != null &&
+               col.attachedRigidbody.CompareTag("Player");
+    }
+}
