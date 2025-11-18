@@ -1,0 +1,68 @@
+// ExamHUD.cs
+using UnityEngine;
+using UnityEngine.UI;
+
+public class ExamHUD : MonoBehaviour
+{
+    [Header("參考元件")]
+    public Text scoreText;
+    public Text timeText;
+    public Text messageText;
+
+    private void Start()
+    {
+        if (!DrivingExamManager.Instance)
+        {
+            Debug.LogError("Scene 中找不到 DrivingExamManager！");
+            enabled = false;
+            return;
+        }
+
+        DrivingExamManager.Instance.OnScoreChanged += UpdateScore;
+        DrivingExamManager.Instance.OnMessage += ShowMessage;
+        DrivingExamManager.Instance.OnExamFinished += OnExamFinished;
+
+        UpdateScore(DrivingExamManager.Instance.CurrentScore);
+    }
+
+    private void OnDestroy()
+    {
+        if (!DrivingExamManager.Instance) return;
+
+        DrivingExamManager.Instance.OnScoreChanged -= UpdateScore;
+        DrivingExamManager.Instance.OnMessage -= ShowMessage;
+        DrivingExamManager.Instance.OnExamFinished -= OnExamFinished;
+    }
+
+    private void Update()
+    {
+        var mgr = DrivingExamManager.Instance;
+        if (mgr == null) return;
+
+        if (mgr.examTimeLimit > 0f)
+        {
+            timeText.text = $"時間：{Mathf.CeilToInt(mgr.RemainingTime)} 秒";
+        }
+        else
+        {
+            timeText.text = $"時間：{Mathf.FloorToInt(mgr.ElapsedTime)} 秒";
+        }
+    }
+
+    private void UpdateScore(float newScore)
+    {
+        scoreText.text = $"分數：{newScore:0}";
+    }
+
+    private void ShowMessage(string msg)
+    {
+        if (messageText == null) return;
+        messageText.text = msg;
+    }
+
+    private void OnExamFinished(bool passed)
+    {
+        if (messageText == null) return;
+        messageText.text += passed ? "\n✅ 恭喜通過考試" : "\n❌ 很可惜，請再試一次";
+    }
+}
