@@ -1,0 +1,87 @@
+// SpeedLimitZone.cs
+using UnityEngine;
+
+[RequireComponent(typeof(Collider))]
+public class SpeedLimitZone : MonoBehaviour
+{
+    [Tooltip("速限（km/h）")]
+    public float speedLimit = 30f;
+
+    [Tooltip("超速容許值（km/h），例如 5 表示 35 才算超速")]
+    public float tolerance = 5f;
+
+    [Tooltip("連續超速多久後才扣分（秒）")]
+    public float overSpeedDuration = 1.5f;
+
+    [Tooltip("超速一次扣分")]
+    public float penaltyScore = 5f;
+
+    [Tooltip("是否可重複扣分（例如一直超速每 overSpeedDuration 扣一次）")]
+    public bool repeatPenalty = false;
+
+    [Tooltip("扣分原因文字")]
+    public string penaltyReason = "超速";
+
+    private float _overSpeedTimer = 0f;
+    private bool _hasPenalized = false;
+    private Rigidbody _rb;
+
+    private void Reset()
+    {
+        GetComponent<Collider>().isTrigger = true;
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (!IsPlayerCar(other)) return;
+
+        _rb = other.attachedRigidbody;
+        _overSpeedTimer = 0f;
+        _hasPenalized = false;
+    }
+
+    private void OnTriggerExit(Collider other)
+    {
+        if (!IsPlayerCar(other)) return;
+        _rb = null;
+        _overSpeedTimer = 0f;
+        _hasPenalized = false;
+    }
+
+    private void Update()
+    {
+        if (_rb == null) return;
+        if (!DrivingExamManager.Instance || !DrivingExamManager.Instance.IsExamRunning) return;
+
+        float speedKmh = _rb.velocity.magnitude * 3.6f;
+        float limit = speedLimit + tolerance;
+
+        if (speedKmh > limit)
+        {
+            _overSpeedTimer += Time.deltaTime;
+
+            if (_overSpeedTimer >= overSpeedDuration)
+            {
+                if (!repeatPenalty && _hasPenalized)
+                    return;
+
+                DrivingExamManager.Instance.AddPenalty(penaltyScore,
+                    $"{penaltyReason}（{Mathf.RoundToInt(speedKmh)} km/h）");
+
+                _hasPenalized = true;
+                _overSpeedTimer = 0f;
+            }
+        }
+        else
+        {
+            // 速度恢復正常，重置計時
+            _overSpeedTimer = 0f;
+        }
+    }
+
+    private bool IsPlayerCar(Collider col)
+    {
+        return col.attachedRigidbody != null &&
+               col.attachedRigidbody.CompareTag("Player");
+    }
+}
