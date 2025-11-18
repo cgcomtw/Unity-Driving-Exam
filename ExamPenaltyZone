@@ -1,0 +1,52 @@
+// ExamPenaltyZone.cs
+using UnityEngine;
+
+[RequireComponent(typeof(Collider))]
+public class ExamPenaltyZone : MonoBehaviour
+{
+    [Tooltip("進入此區域要扣的分數")]
+    public float penaltyScore = 5f;
+
+    [Tooltip("是否只扣一次（true = 只扣一次，false = 每次進入都扣）")]
+    public bool onlyOnce = true;
+
+    [Tooltip("是否只在第一次進入時顯示訊息")]
+    public bool messageOnlyOnFirst = true;
+
+    [Tooltip("扣分原因說明")]
+    public string penaltyReason = "違規";
+
+    [Tooltip("重大違規：直接判定不及格")]
+    public bool isCriticalFault = false;
+
+    private bool _hasPenaltyApplied = false;
+
+    private void Reset()
+    {
+        GetComponent<Collider>().isTrigger = true;
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (!IsPlayerCar(other)) return;
+        if (!DrivingExamManager.Instance || !DrivingExamManager.Instance.IsExamRunning) return;
+
+        if (onlyOnce && _hasPenaltyApplied) return;
+        _hasPenaltyApplied = true;
+
+        if (isCriticalFault)
+        {
+            DrivingExamManager.Instance.ForceFail(penaltyReason);
+        }
+        else
+        {
+            DrivingExamManager.Instance.AddPenalty(penaltyScore, penaltyReason);
+        }
+    }
+
+    private bool IsPlayerCar(Collider col)
+    {
+        return col.attachedRigidbody != null &&
+               col.attachedRigidbody.CompareTag("Player");
+    }
+}
